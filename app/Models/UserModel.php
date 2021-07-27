@@ -15,7 +15,7 @@ class UserModel extends Model
     protected $returnType = User::class;
     protected $useSoftDeletes = false;
     protected $protectFields = true;
-    protected $allowedFields = ['username', 'email', 'password', 'phone'];
+    protected $allowedFields = ['username', 'email', 'password', 'phone', 'full_name'];
 
     // Dates
     protected $useTimestamps = false;
@@ -60,16 +60,19 @@ class UserModel extends Model
     protected function favourite(array $data): array
     {
         $user = $data['data'];
-
-        $builder = $this->db->table("user_favourites");
-        $query = $builder->select('recipe_id')->where('user_id', $user->id)->get();
         $fav = [];
 
-        foreach ($query->getResultArray() as $rid) {
-            $fav[] = (int)$rid['recipe_id'];
+        if ($user != null) {
+            $builder = $this->db->table("user_favourites");
+            $query = $builder->select('recipe_id')->where('user_id', $user->id)->get();
+
+            foreach ($query->getResultArray() as $rid) {
+                $fav[] = (int)$rid['recipe_id'];
+            }
+
+            $data['data']->favourites = $fav;
         }
 
-        $data['data']->favourites = $fav;
         return $data;
     }
 }

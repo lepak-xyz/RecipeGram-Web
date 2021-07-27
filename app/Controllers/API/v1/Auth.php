@@ -56,8 +56,10 @@ class Auth extends ResourceController
     {
         try {
             $user = $this->model->where(['email' => $emailAddress, 'password' => $password])->first();
+
             if (!$user)
                 return $this->respond(['error' => ['account' => 'Invalid username or password']]);
+
 
             unset($user->password);
 
@@ -68,6 +70,7 @@ class Auth extends ResourceController
                 'user' => $user,
                 'access_token' => getSignedJWTForUser($emailAddress)
             ]);
+
         } catch (Exception $exception) {
             return $this->respond(['error' => $exception->getMessage()], $responseCode);
         }
