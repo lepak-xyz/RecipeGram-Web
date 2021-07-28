@@ -37,6 +37,7 @@ $routes->get('/', 'Home::index');
 $routes->group('api/v1', ['namespace' => 'App\Controllers\API\v1'], function ($routes) {
     //$routes->resource('auth');
     //$routes->resource('users');
+    $routes->put('users/(:segment)', 'Users::update/$1');
     $routes->resource('recipe/tags');
     $routes->resource('recipe');
 });

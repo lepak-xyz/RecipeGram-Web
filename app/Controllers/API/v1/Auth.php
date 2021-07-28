@@ -72,7 +72,7 @@ class Auth extends ResourceController
             ]);
 
         } catch (Exception $exception) {
-            return $this->respond(['error' => $exception->getMessage()], $responseCode);
+            return $this->respond(['error' => [$exception->getMessage()]], $responseCode);
         }
     }
 }

@@ -15,7 +15,7 @@ class UserModel extends Model
     protected $returnType = User::class;
     protected $useSoftDeletes = false;
     protected $protectFields = true;
-    protected $allowedFields = ['username', 'email', 'password', 'phone', 'full_name'];
+    protected $allowedFields = ['username', 'email', 'password', 'phone', 'full_name', 'profileImgUrl', 'bio'];
 
     // Dates
     protected $useTimestamps = false;
@@ -26,21 +26,22 @@ class UserModel extends Model
 
     // Validation
     protected $validationRules = [
+        'username' => 'required|min_length[3]|is_unique[users.username,id,{id}]',
         'full_name' => 'permit_empty|min_length[3]',
-        'username' => 'required|alpha_numeric_space|min_length[3]|is_unique[users.username]',
         'email' => 'required|valid_email|is_unique[users.email]',
         'password' => 'required|min_length[8]',
         'phone' => 'required|min_length[8]|is_unique[users.phone]',
+        'bio' => 'permit_empty|max_length[60]'
     ];
     protected $validationMessages = [
         'username' => [
-            'is_unique' => 'Sorry. That email has already been taken. Please choose another.'
+            'is_unique' => 'Sorry. That username has already been taken. Please choose another.'
         ],
         'email' => [
             'is_unique' => 'Sorry. That email has already been taken. Please choose another.'
         ],
         'phone' => [
-            'is_unique' => 'Sorry. That email has already been taken. Please choose another.'
+            'is_unique' => 'Sorry. That phone has already been taken. Please choose another.'
         ]
     ];
     protected $skipValidation = false;
@@ -62,15 +63,19 @@ class UserModel extends Model
         $user = $data['data'];
         $fav = [];
 
-        if ($user != null) {
-            $builder = $this->db->table("user_favourites");
-            $query = $builder->select('recipe_id')->where('user_id', $user->id)->get();
+        try {
+            if ($user != null) {
+                $builder = $this->db->table("user_favourites");
+                $query = $builder->select('recipe_id')->where('user_id', $user->id)->get();
 
-            foreach ($query->getResultArray() as $rid) {
-                $fav[] = (int)$rid['recipe_id'];
+                foreach ($query->getResultArray() as $rid) {
+                    $fav[] = (int)$rid['recipe_id'];
+                }
+
+                $data['data']->favourites = $fav;
             }
+        } catch (\Exception $e) {
 
-            $data['data']->favourites = $fav;
         }
 
         return $data;

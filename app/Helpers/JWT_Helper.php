@@ -19,9 +19,9 @@ function getJWTFromRequest($authenticationHeader): string
 /**
  * @throws Exception
  */
-function validateJWTFromRequest(string $encodedToken)
+function validateJWTFromRequest(string $encodedToken): \App\Entities\User
 {
-    $key = Services::getSecretKey();
+    $key = "kzUf4sxss4AeG5uHkNZAqT1Nyi1zVfpz"; // Services::getSecretKey();
     $decodedToken = JWT::decode($encodedToken, $key, ['HS256']);
     $userModel = new UserModel();
 

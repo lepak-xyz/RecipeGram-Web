@@ -19,7 +19,7 @@ class Recipe extends ResourceController
 
     public function index()
 	{
-	    return $this->respond($this->model->findAll());
+	    return $this->respond($this->model->orderBy('created_at', 'desc')->findAll());
 	}
 
 	public function show($keyword = null)

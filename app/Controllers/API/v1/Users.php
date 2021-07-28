@@ -2,13 +2,16 @@
 
 namespace App\Controllers\API\V1;
 
+use App\Entities\User;
 use App\Models\RecipeModel;
+use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\RESTful\ResourceController;
 use Config\Database;
 
 class Users extends ResourceController
 {
     protected $db;
+    protected $modelName = 'App\Models\UserModel';
     protected $format = 'json';
 
     public function __construct()
@@ -17,60 +20,201 @@ class Users extends ResourceController
     }
 
     public function index()
-	{
-	    return $this->respond(['data' => 200]);
-		//
-	}
+    {
+        try {
+            $user = $this->getCurrentUser();
 
-	public function recipe() {
-        $model = new RecipeModel();
-        $data = $model->where('author', $this->request->getGet('id'))->findAll();
-
-        return $this->respond(['status' => 200, 'data' => $data]);
+            return $this->respond(['status' => 200, 'data' => $user]);
+        } catch (\Exception $e) {
+            return $this->respond(['error' => $e->getMessage()], ResponseInterface::HTTP_BAD_REQUEST);
+        }
     }
 
-	public function favourites() {
+    public function update($id = null)
+    {
+        try {
+            $user = $this->getCurrentUser();
+            $rules = $this->model->getValidationRules(['only' => ['full_name', 'username', 'bio']]);
+            $data = json_decode($this->request->getBody(), true);
+
+            if (!$this->validate($rules)) {
+                return $this->respond(["error" => implode(", ", $this->validator->getErrors())], ResponseInterface::HTTP_BAD_REQUEST);
+            }
+
+            if ($this->model->update($user->id, $data)) {
+                return $this->respondUpdated(['status' => 200]);
+            } else {
+                return $this->respond(['status' => 500, "error" => "No data to be updated."], ResponseInterface::HTTP_BAD_REQUEST);
+            }
+        } catch (\Exception $e) {
+            return $this->respond(['error' => $e->getMessage()], ResponseInterface::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function updateImage()
+    {
+        try {
+            if ($this->request->getServer('REQUEST_METHOD') != 'POST' || !$this->request->getFile('image')) {
+                throw new \Exception("Invalid request");
+            }
+
+            $user = $this->getCurrentUser();
+            $file = $this->request->getFile('image');
+            $profile_img = $file->getName();
+
+            $temp = explode(".", $profile_img);
+            $newfilename = round(microtime(true)) . '.' . end($temp);
+
+            if ($file->move("images", $newfilename)) {
+                $data = [
+                    'profileImgUrl' => base_url("images/{$newfilename}"),
+                ];
+
+                $oldFile = "images/" . basename($user->profileImgUrl);
+                if ($user->profileImgUrl != null && !empty($user->profileImgUrl) && file_exists($oldFile)) {
+                    @unlink($oldFile);
+                }
+
+                if ($this->model->update($user->id, $data)) {
+                    $response = [
+                        'status' => 200,
+                        'message' => 'File uploaded successfully',
+                    ];
+                } else {
+                    $response = [
+                        'status' => 500,
+                        'error' => 'Failed to save image',
+                    ];
+                }
+            } else {
+                $response = [
+                    'status' => 500,
+                    'error' => 'Failed to upload image',
+                ];
+            }
+
+            return $this->respondCreated($response);
+        } catch (\Exception $e) {
+            return $this->respond(['error' => $e->getMessage()], ResponseInterface::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function recipe()
+    {
+        try {
+            $user = $this->getCurrentUser();
+
+            $model = new RecipeModel();
+
+            // RETRIEVE
+            if ($this->request->getServer('REQUEST_METHOD') == "GET") {
+                $data = $model->where('author', $user->id)->findAll();
+
+                return $this->respond(['status' => 200, 'data' => $data]);
+            } elseif ($this->request->getServer('REQUEST_METHOD') == 'POST' && $this->request->getFile('image')) {
+                // IMAGE
+                $file = $this->request->getFile('image');
+                $profile_img = $file->getName();
+
+                $temp = explode(".", $profile_img);
+                $newfilename = round(microtime(true)) . '.' . end($temp);
+
+                // DB
+                if ($file->move("images/recipe/", $newfilename)) {
+                    $data = $this->request->getPost();
+                    $data = json_decode($data['data'], true);
+                    $data['ingredients'] = $this->formatToJson($data['ingredients']);
+                    $data['instructions'] = $this->formatToJson($data['instructions']);
+
+                    $repEt = new \App\Entities\Recipe($data);
+                    $repEt->author = $user->id;
+                    $repEt->images = base_url('images/recipe/' . $newfilename);
+
+                    $model->save($repEt);
+
+                    return $this->respondCreated(['status' => 200]);
+                } else {
+                    return $this->respond(['status' => 500, 'error' => 'Server error. Failed to upload image.'], ResponseInterface::HTTP_BAD_REQUEST);
+                }
+            }
+        } catch (\Exception $e) {
+            return $this->respond(['error' => $e->getMessage()], ResponseInterface::HTTP_BAD_REQUEST);
+        }
+    }
+
+    private function formatToJson($text)
+    {
+        $res = [];
+        $tmp = explode("\n", $text);
+
+        foreach ($tmp as $idx => $val) {
+            $idx++;
+            $res["{$idx}"] = $val;
+        }
+
+        return $res;
+    }
+
+    public function favourites()
+    {
         $action = $this->request->getGet("action");
 
-        $builder = $this->db->table('user_favourites');
-        switch ($action) {
-            case "add":
-                // TODO
-                // ONLY TOKEN USER CAN ADD
-                try {
-                    $data = [
-                        'user_id' => $this->request->getGet('uid'),
-                        'recipe_id' => $this->request->getGet('rid')
-                    ];
-                    $builder->insert($data);
-                    return $this->respond(['message' => 'Successfully added!']);
-                } catch (\Exception $e) {
-                    return $this->respond(['error' => ['server' => $e->getMessage()]]);
-                }
-                break;
+        try {
+            $user = $this->getCurrentUser();
 
-            case "get":
-                $builder->select('*');
-                $builder->join('recipe', 'recipe.id = user_favourites.recipe_id');
-                $builder->where('user_id', $this->request->getGet('uid'));
-                $query = $builder->get();
+            $builder = $this->db->table('user_favourites');
+            switch ($action) {
+                case "add":
+                    // TODO
+                    // ONLY TOKEN USER CAN ADD
+                    try {
+                        $data = [
+                            'user_id' => $user->id,
+                            'recipe_id' => $this->request->getGet('rid')
+                        ];
+                        $builder->insert($data);
+                        return $this->respondCreated(['message' => 'Successfully added!']);
+                    } catch (\Exception $e) {
+                        return $this->respond(['error' => ['server' => $e->getMessage()]]);
+                    }
 
-                return $this->respond(['status' => 200, 'data' => $query->getCustomResultObject(\App\Entities\Recipe::class)]);
-                break;
+                case "remove":
+                    // TODO
+                    // ONLY TOKEN USER CAN ADD
+                    try {
+                        $builder->delete(['user_id' => $user->id, 'recipe_id' => $this->request->getGet('rid')]);
+                        return $this->respondDeleted(['message' => 'Successfully deleted!']);
+                    } catch (\Exception $e) {
+                        return $this->respond(['error' => ['server' => $e->getMessage()]], ResponseInterface::HTTP_BAD_REQUEST);
+                    }
 
-            case "remove":
-                // TODO
-                // ONLY TOKEN USER CAN ADD
-                try {
-                    $builder->delete(['user_id' => $this->request->getGet('uid'), 'recipe_id' => $this->request->getGet('rid')]);
-                    return $this->respond(['message' => 'Successfully deleted!']);
-                } catch (\Exception $e) {
-                    return $this->respond(['error' => ['server' => $e->getMessage()]]);
-                }
-                break;
+                case "get":
+                default:
+                    $builder->select('*');
+                    $builder->join('recipe', 'recipe.id = user_favourites.recipe_id');
+                    $builder->where('user_id', $user->id);
+                    $query = $builder->get();
 
-            default:
-                return $this->respond(['error' => ['server' => 'Invalid request.']]);
+                    return $this->respond(['status' => 200, 'data' => $query->getCustomResultObject(\App\Entities\Recipe::class)]);
+            }
+        } catch (\Exception $e) {
+            return $this->respond(['error' => $e->getMessage()], ResponseInterface::HTTP_BAD_REQUEST);
+        }
+    }
+
+    /**
+     * @throws \Exception
+     */
+    private function getCurrentUser(): User
+    {
+        try {
+            helper('jwt');
+
+            $token = $this->request->getServer('HTTP_AUTHORIZATION');
+            $encodedToken = getJWTFromRequest($token);
+            return validateJWTFromRequest($encodedToken);
+        } catch (\Exception $e) {
+            throw new \Exception($e);
         }
     }
 }
