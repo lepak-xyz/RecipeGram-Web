@@ -23,7 +23,7 @@ class App extends BaseConfig
 	 *
 	 * @var string
 	 */
-	public $baseURL = 'http://recipegram.dev/';
+	public $baseURL = 'http://recipegram.lepak.xyz/';
 
 	/**
 	 * --------------------------------------------------------------------------
