@@ -54,12 +54,41 @@ class UserModel extends Model
     protected $beforeUpdate = [];
     protected $afterUpdate = [];
     protected $beforeFind = [];
-    protected $afterFind = ['favourite'];
+    protected $afterFind = ['favourite', 'heats'];
     protected $beforeDelete = [];
     protected $afterDelete = [];
 
+    protected function heats(array $data) : array {
+        if (!isset($data['data']->id)) return $data;
+
+        $builder = $this->db->table('user_heats');
+        $query = $builder->select('recipe_id')->where('user_id', $data['data']->id)->get();
+        $temp = [];
+
+        foreach ($query->getResultArray() as $row) {
+            $temp[] = (int)$row['recipe_id'];
+        }
+
+        $data['data']->heats = $temp;
+
+        return $data;
+    }
+
     protected function favourite(array $data): array
     {
+        if (!isset($data['data']->id)) return $data;
+
+        $builder = $this->db->table('user_favourites');
+        $query = $builder->select('recipe_id')->where('user_id', $data['data']->id)->get();
+        $temp = [];
+
+        foreach ($query->getResultArray() as $row) {
+            $temp[] = (int)$row['recipe_id'];
+        }
+
+        $data['data']->favourites = $temp;
+
+        /*
         $user = $data['data'];
         $fav = [];
 
@@ -77,6 +106,7 @@ class UserModel extends Model
         } catch (\Exception $e) {
 
         }
+        */
 
         return $data;
     }

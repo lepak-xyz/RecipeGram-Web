@@ -4,6 +4,7 @@ namespace App\Controllers\API\V1;
 
 use App\Entities\User;
 use App\Models\RecipeModel;
+use CodeIgniter\Database\Query;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\RESTful\ResourceController;
 use Config\Database;
@@ -108,7 +109,8 @@ class Users extends ResourceController
 
             // RETRIEVE
             if ($this->request->getServer('REQUEST_METHOD') == "GET") {
-                $data = $model->where('author', $user->id)->findAll();
+                //$data = $model->where('author', $user->id)->findAll();
+                $data = $model->getAllRecipes($user->id);
 
                 return $this->respond(['status' => 200, 'data' => $data]);
             } elseif ($this->request->getServer('REQUEST_METHOD') == 'POST' && $this->request->getFile('image')) {
@@ -190,12 +192,23 @@ class Users extends ResourceController
 
                 case "get":
                 default:
-                    $builder->select('*');
-                    $builder->join('recipe', 'recipe.id = user_favourites.recipe_id');
-                    $builder->where('user_id', $user->id);
-                    $query = $builder->get();
+                    /*
+                    $builder->groupStart()->select(['*', 'COUNT(user_heats.recipe_id) as heat'])->from('recipe')
+                        ->join('user_heats', 'recipe.id = user_heats.recipe_id', 'left')->groupEnd()->;
 
-                    return $this->respond(['status' => 200, 'data' => $query->getCustomResultObject(\App\Entities\Recipe::class)]);
+                    $builder->join('recipe', 'recipe.id = user_favourites.recipe_id');
+                    $builder->join('user_heats', 'user_heats.recipe_id = recipe.id', 'left');
+                    $builder->groupBy('recipe.id');
+
+                        $builder->where('user_favourites.user_id', $user->id);
+                    */
+
+                    $pQuery = $this->db->prepare(function ($db) {
+                        $sql = "SELECT c.* FROM user_favourites a INNER JOIN (SELECT b.*, COUNT(c.recipe_id) AS heat FROM recipe b LEFT JOIN user_heats c ON c.recipe_id = b.id GROUP BY b.id) as c ON c.id = a.recipe_id WHERE a.user_id = ?;";
+                        return (new Query($db))->setQuery($sql);
+                    });
+
+                    return $this->respond(['status' => 200, 'data' => $pQuery->execute($user->id)->getCustomResultObject(\App\Entities\Recipe::class)]);
             }
         } catch (\Exception $e) {
             return $this->respond(['error' => $e->getMessage()], ResponseInterface::HTTP_BAD_REQUEST);
